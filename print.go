@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package boomer
+package main
 
 import (
 	"fmt"
@@ -74,6 +74,7 @@ func (r *report) finalize() {
 			return
 		}
 	}
+	close(r.results)
 }
 
 func (r *report) print() {
@@ -88,6 +89,7 @@ func (r *report) print() {
 		r.fastest = r.lats[0]
 		r.slowest = r.lats[len(r.lats)-1]
 		fmt.Printf("\nSummary:\n")
+		fmt.Printf("  Write calls: %d, read calls: %d, bytes read: %d\n", writeCalls, readCalls, bytesRead)
 		fmt.Printf("  Total:\t%4.4f secs.\n", r.total.Seconds())
 		fmt.Printf("  Slowest:\t%4.4f secs.\n", r.slowest)
 		fmt.Printf("  Fastest:\t%4.4f secs.\n", r.fastest)

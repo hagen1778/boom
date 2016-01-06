@@ -17,14 +17,18 @@ package main
 import (
 	"flag"
 	"fmt"
-	"net/http"
+	//	"net/http"
 	gourl "net/url"
 	"os"
 	"regexp"
 	"runtime"
 	"strings"
 
-	"github.com/rakyll/boom/boomer"
+	//	"github.com/rakyll/boom/boomer"
+	"github.com/valyala/fasthttp"
+	"log"
+	"runtime/pprof"
+	"time"
 )
 
 const (
@@ -39,7 +43,6 @@ var (
 	accept      = flag.String("A", "", "")
 	contentType = flag.String("T", "text/html", "")
 	authHeader  = flag.String("a", "", "")
-	readAll     = flag.Bool("readall", false, "")
 
 	output = flag.String("o", "", "")
 
@@ -53,6 +56,9 @@ var (
 	disableCompression = flag.Bool("disable-compression", false, "")
 	disableKeepAlives  = flag.Bool("disable-keepalive", false, "")
 	proxyAddr          = flag.String("x", "", "")
+
+	flagCPUProfile = flag.String("cpuprofile", "", "write cpu profile to file")
+	flagMemProfile = flag.String("memprofile", "", "write memory profile to file")
 )
 
 var usage = `Usage: boom [options...] <url>
@@ -75,7 +81,6 @@ Options:
   -a  Basic authentication, username:password.
   -x  HTTP Proxy address as host:port.
 
-  -readall              Consumes the entire request body.
   -allow-insecure       Allow bad/expired TLS/SSL certificates.
   -disable-compression  Disable compression.
   -disable-keepalive    Disable keep-alive, prevents re-use of TCP
@@ -94,6 +99,31 @@ func main() {
 		usageAndExit("")
 	}
 
+	if *flagCPUProfile != "" {
+		log.Print("Profiling to file ", *flagCPUProfile, " started.")
+		f, err := os.Create(*flagCPUProfile)
+		if err != nil {
+			log.Fatal(err)
+		}
+		pprof.StartCPUProfile(f)
+		defer pprof.StopCPUProfile()
+	}
+	if *flagMemProfile != "" {
+		log.Print("Profiling to file ", *flagMemProfile, " started.")
+		go func() {
+			for {
+				time.Sleep(7 * time.Second)
+
+				f, err := os.Create(*flagMemProfile)
+				if err != nil {
+					log.Print(err)
+				}
+				pprof.WriteHeapProfile(f)
+			}
+		}()
+
+	}
+
 	runtime.GOMAXPROCS(*cpus)
 	num := *n
 	conc := *c
@@ -106,17 +136,17 @@ func main() {
 	var (
 		url, method string
 		// Username and password for basic auth
-		username, password string
+		//		username, password string
 		// request headers
-		header http.Header = make(http.Header)
+		header fasthttp.RequestHeader
 	)
 
 	url = flag.Args()[0]
 	method = strings.ToUpper(*m)
 
 	// set content-type
-	header.Set("Content-Type", *contentType)
-	// set any other additional headers
+	header.SetContentType(*contentType)
+	//	// set any other additional headers
 	if *headers != "" {
 		headers := strings.Split(*headers, ";")
 		for _, h := range headers {
@@ -132,7 +162,7 @@ func main() {
 		header.Set("Accept", *accept)
 	}
 
-	// set basic auth if set
+	/*// set basic auth if set
 	if *authHeader != "" {
 		match, err := parseInputWithRegexp(*authHeader, authRegexp)
 		if err != nil {
@@ -140,10 +170,10 @@ func main() {
 		}
 		username, password = match[1], match[2]
 	}
-
-	if *output != "csv" && *output != "" {
-		usageAndExit("Invalid output type; only csv is supported.")
-	}
+	*/
+	//	if *output != "csv" && *output != "" {
+	//		usageAndExit("Invalid output type; only csv is supported.")
+	//	}
 
 	var proxyURL *gourl.URL
 	if *proxyAddr != "" {
@@ -154,18 +184,27 @@ func main() {
 		}
 	}
 
-	req, err := http.NewRequest(method, url, nil)
-	if err != nil {
-		usageAndExit(err.Error())
-	}
-	req.Header = header
-	if username != "" || password != "" {
-		req.SetBasicAuth(username, password)
-	}
+	//	req, err := http.NewRequest(method, url, nil)
+	//	if err != nil {
+	//		usageAndExit(err.Error())
+	//	}
+	//	req.Header = header
+	//	if username != "" || password != "" {
+	//		req.SetBasicAuth(username, password)
+	//	}
+	header.SetMethod(method)
+	header.SetRequestURI(url)
+	header.Set("Accept-Encoding", "gzip, deflate, sdch")
 
-	(&boomer.Boomer{
-		Request:            req,
-		RequestBody:        *body,
+	var req fasthttp.Request
+	header.CopyTo(&req.Header)
+	req.AppendBodyString(*body)
+
+	//TODO set all settings directly to property of header
+
+	(&Boomer{
+		Request: &req,
+		//		RequestBody:        *body,
 		N:                  num,
 		C:                  conc,
 		Qps:                q,
@@ -175,7 +214,6 @@ func main() {
 		DisableKeepAlives:  *disableKeepAlives,
 		ProxyAddr:          proxyURL,
 		Output:             *output,
-		ReadAll:            *readAll,
 	}).Run()
 }
 
