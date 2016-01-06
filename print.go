@@ -16,6 +16,9 @@ package main
 
 import (
 	"fmt"
+	"log"
+	"os"
+	"runtime/pprof"
 	"sort"
 	"strings"
 	"time"
@@ -32,7 +35,7 @@ type report struct {
 	average  float64
 	rps      float64
 
-	results chan *result
+	results []result
 	total   time.Duration
 
 	errorDist      map[string]int
@@ -43,7 +46,7 @@ type report struct {
 	output string
 }
 
-func newReport(size int, results chan *result, output string, total time.Duration) *report {
+func newReport(size int, results []result, output string, total time.Duration) *report {
 	return &report{
 		output:         output,
 		results:        results,
@@ -54,27 +57,35 @@ func newReport(size int, results chan *result, output string, total time.Duratio
 }
 
 func (r *report) finalize() {
-	for {
-		select {
-		case res := <-r.results:
-			if res.err != nil {
-				r.errorDist[res.err.Error()]++
-			} else {
-				r.lats = append(r.lats, res.duration.Seconds())
-				r.avgTotal += res.duration.Seconds()
-				r.statusCodeDist[res.statusCode]++
-				if res.contentLength > 0 {
-					r.sizeTotal += res.contentLength
-				}
+	for i := 0; i < len(r.results); i++ {
+		res := &r.results[i]
+		if res.err != nil {
+			r.errorDist[res.err.Error()]++
+		} else {
+			r.lats = append(r.lats, res.duration.Seconds())
+			r.avgTotal += res.duration.Seconds()
+			r.statusCodeDist[res.statusCode]++
+			if res.contentLength > 0 {
+				r.sizeTotal += res.contentLength
 			}
-		default:
-			r.rps = float64(len(r.lats)) / r.total.Seconds()
-			r.average = r.avgTotal / float64(len(r.lats))
-			r.print()
-			return
 		}
 	}
-	close(r.results)
+
+	r.rps = float64(len(r.lats)) / r.total.Seconds()
+	r.average = r.avgTotal / float64(len(r.lats))
+	r.print()
+	if *flagMemProfile != "" {
+		log.Print("Profiling to file ", *flagMemProfile, " started.")
+
+		f, err := os.Create(*flagMemProfile)
+		if err != nil {
+			log.Fatal(err)
+		}
+		pprof.WriteHeapProfile(f)
+		f.Close()
+		return
+	}
+
 }
 
 func (r *report) print() {

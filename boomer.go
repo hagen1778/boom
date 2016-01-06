@@ -24,10 +24,12 @@ import (
 	"sync"
 	"time"
 
-	"errors"
+	//	"errors"
 	"github.com/rakyll/pb"
 	"github.com/valyala/fasthttp"
 	"sync/atomic"
+	//	"errors"
+	"errors"
 )
 
 type result struct {
@@ -81,7 +83,8 @@ type Boomer struct {
 
 	bar     *pb.ProgressBar
 	host    string
-	results chan *result
+	results []result
+	idx uint64
 }
 
 func (b *Boomer) startProgress() {
@@ -111,7 +114,7 @@ func (b *Boomer) incProgress() {
 // all work is done.
 func (b *Boomer) Run() {
 	start := time.Now()
-	b.results = make(chan *result, b.N)
+	b.results = make([]result, b.N)
 	//TODO: check possibility to achieve real port
 	b.host = string(b.Request.URI().Host()) + ":80"
 	b.startProgress()
@@ -119,18 +122,16 @@ func (b *Boomer) Run() {
 	b.runWorkers()
 	b.finalizeProgress()
 	newReport(b.N, b.results, b.Output, time.Now().Sub(start)).finalize()
-	close(b.results)
 }
 
 //TODO: add redirect support for 301,302,303 headers
-func (w *worker) sendRequest(req *fasthttp.Request) (fasthttp.Response, error) {
-	var resp fasthttp.Response
-	err := w.send(req, &resp)
+func (w *worker) sendRequest(req *fasthttp.Request, resp *fasthttp.Response) error {
+	err := w.send(req, resp)
 	if err != nil {
 		w.restartConnection()
 	}
 
-	return resp, err
+	return err
 }
 
 func (w *worker) send(req *fasthttp.Request, resp *fasthttp.Response) error {
@@ -147,9 +148,9 @@ func (w *worker) send(req *fasthttp.Request, resp *fasthttp.Response) error {
 		return err
 	}
 
-	if resp.ConnectionClose() {
-		return errors.New("Worker: connection was closed!")
-	}
+		if resp.ConnectionClose() {
+			return errors.New("Worker: connection was closed!")
+		}
 
 	return nil
 }
@@ -223,6 +224,7 @@ func (c *countConn) Close() error {
 func (b *Boomer) runWorker(ch <-chan struct{}) {
 	worker := NewWorker(b.host)
 	defer worker.closeConnection()
+	var resp fasthttp.Response
 
 	for range ch {
 		s := time.Now()
@@ -231,19 +233,19 @@ func (b *Boomer) runWorker(ch <-chan struct{}) {
 			size int64
 		)
 
-		resp, err := worker.sendRequest(b.Request)
+		err := worker.sendRequest(b.Request, &resp)
 		if err == nil {
 			size = int64(resp.Header.ContentLength())
 			code = resp.StatusCode()
 		}
 
 		b.incProgress()
-		b.results <- &result{
-			statusCode:    code,
-			duration:      time.Since(s),
-			err:           err,
-			contentLength: size,
-		}
+		idx := atomic.AddUint64(&b.idx, 1)
+		r := &b.results[idx-1]
+		r.statusCode = code
+		r.duration = time.Since(s)
+		r.err = err
+		r.contentLength = size
 	}
 }
 

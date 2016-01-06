@@ -17,18 +17,15 @@ package main
 import (
 	"flag"
 	"fmt"
-	//	"net/http"
 	gourl "net/url"
 	"os"
 	"regexp"
 	"runtime"
 	"strings"
 
-	//	"github.com/rakyll/boom/boomer"
 	"github.com/valyala/fasthttp"
 	"log"
 	"runtime/pprof"
-	"time"
 )
 
 const (
@@ -42,7 +39,6 @@ var (
 	body        = flag.String("d", "", "")
 	accept      = flag.String("A", "", "")
 	contentType = flag.String("T", "text/html", "")
-	authHeader  = flag.String("a", "", "")
 
 	output = flag.String("o", "", "")
 
@@ -107,21 +103,6 @@ func main() {
 		}
 		pprof.StartCPUProfile(f)
 		defer pprof.StopCPUProfile()
-	}
-	if *flagMemProfile != "" {
-		log.Print("Profiling to file ", *flagMemProfile, " started.")
-		go func() {
-			for {
-				time.Sleep(7 * time.Second)
-
-				f, err := os.Create(*flagMemProfile)
-				if err != nil {
-					log.Print(err)
-				}
-				pprof.WriteHeapProfile(f)
-			}
-		}()
-
 	}
 
 	runtime.GOMAXPROCS(*cpus)
