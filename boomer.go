@@ -24,12 +24,9 @@ import (
 	"sync"
 	"time"
 
-	//	"errors"
 	"github.com/rakyll/pb"
 	"github.com/valyala/fasthttp"
 	"sync/atomic"
-	//	"errors"
-	"errors"
 )
 
 type result struct {
@@ -84,7 +81,7 @@ type Boomer struct {
 	bar     *pb.ProgressBar
 	host    string
 	results []result
-	idx uint64
+	idx     uint64
 }
 
 func (b *Boomer) startProgress() {
@@ -127,7 +124,7 @@ func (b *Boomer) Run() {
 //TODO: add redirect support for 301,302,303 headers
 func (w *worker) sendRequest(req *fasthttp.Request, resp *fasthttp.Response) error {
 	err := w.send(req, resp)
-	if err != nil {
+	if err != nil || resp.ConnectionClose() {
 		w.restartConnection()
 	}
 
@@ -147,10 +144,6 @@ func (w *worker) send(req *fasthttp.Request, resp *fasthttp.Response) error {
 		fmt.Printf("Read - unexpected error: %s\n", err)
 		return err
 	}
-
-		if resp.ConnectionClose() {
-			return errors.New("Worker: connection was closed!")
-		}
 
 	return nil
 }
@@ -185,6 +178,7 @@ func (w *worker) closeConnection() {
 func (w *worker) restartConnection() {
 	w.closeConnection()
 	w.openConnection()
+	atomic.AddUint32(&connectionRestarts, 1)
 }
 
 type countConn struct {
@@ -208,9 +202,10 @@ func (c *countConn) Read(p []byte) (int, error) {
 }
 
 var (
-	writeCalls uint32
-	readCalls  uint32
-	bytesRead  uint64
+	writeCalls         uint32
+	readCalls          uint32
+	bytesRead          uint64
+	connectionRestarts uint32
 )
 
 func (c *countConn) Close() error {
