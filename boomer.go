@@ -220,6 +220,7 @@ func (b *Boomer) runWorker(ch <-chan struct{}) {
 	worker := NewWorker(b.host)
 	defer worker.closeConnection()
 	var resp fasthttp.Response
+	req := cloneRequest(b.Request)
 
 	for range ch {
 		s := time.Now()
@@ -228,7 +229,7 @@ func (b *Boomer) runWorker(ch <-chan struct{}) {
 			size int64
 		)
 
-		err := worker.sendRequest(b.Request, &resp)
+		err := worker.sendRequest(req, &resp)
 		if err == nil {
 			size = int64(resp.Header.ContentLength())
 			code = resp.StatusCode()
@@ -261,4 +262,14 @@ func (b *Boomer) runWorkers() {
 	}
 	close(jobsch)
 	wg.Wait()
+}
+
+// cloneRequest returns a clone of the provided *http.Request.
+// The clone is a shallow copy of the struct and its Header map.
+func cloneRequest(r *fasthttp.Request) *fasthttp.Request {
+	// shallow copy of the struct
+	r2 := new(fasthttp.Request)
+	r.Header.CopyTo(&r2.Header)
+	r2.AppendBody( r.Body() )
+	return r2
 }
