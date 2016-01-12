@@ -42,11 +42,10 @@ var (
 
 	output = flag.String("o", "", "")
 
-	c    = flag.Int("c", 50, "")
-	n    = flag.Int("n", 200, "")
-	q    = flag.Int("q", 0, "")
-	t    = flag.Int("t", 0, "")
-	cpus = flag.Int("cpus", runtime.GOMAXPROCS(-1), "")
+	c = flag.Int("c", 50, "")
+	n = flag.Int("n", 200, "")
+	q = flag.Int("q", 0, "")
+	t = flag.Int("t", 0, "")
 
 	insecure           = flag.Bool("allow-insecure", false, "")
 	disableCompression = flag.Bool("disable-compression", false, "")
@@ -81,8 +80,6 @@ Options:
   -disable-compression  Disable compression.
   -disable-keepalive    Disable keep-alive, prevents re-use of TCP
                         connections between different HTTP requests.
-  -cpus                 Number of used cpu cores.
-                        (default for current machine is %d cores)
 `
 
 func main() {
@@ -105,7 +102,6 @@ func main() {
 		defer pprof.StopCPUProfile()
 	}
 
-	runtime.GOMAXPROCS(*cpus)
 	num := *n
 	conc := *c
 	q := *q
@@ -116,10 +112,7 @@ func main() {
 
 	var (
 		url, method string
-		// Username and password for basic auth
-		//		username, password string
-		// request headers
-		header fasthttp.RequestHeader
+		header      fasthttp.RequestHeader
 	)
 
 	url = flag.Args()[0]
@@ -143,19 +136,6 @@ func main() {
 		header.Set("Accept", *accept)
 	}
 
-	/*// set basic auth if set
-	if *authHeader != "" {
-		match, err := parseInputWithRegexp(*authHeader, authRegexp)
-		if err != nil {
-			usageAndExit(err.Error())
-		}
-		username, password = match[1], match[2]
-	}
-	*/
-	//	if *output != "csv" && *output != "" {
-	//		usageAndExit("Invalid output type; only csv is supported.")
-	//	}
-
 	var proxyURL *gourl.URL
 	if *proxyAddr != "" {
 		var err error
@@ -165,14 +145,6 @@ func main() {
 		}
 	}
 
-	//	req, err := http.NewRequest(method, url, nil)
-	//	if err != nil {
-	//		usageAndExit(err.Error())
-	//	}
-	//	req.Header = header
-	//	if username != "" || password != "" {
-	//		req.SetBasicAuth(username, password)
-	//	}
 	header.SetMethod(method)
 	header.SetRequestURI(url)
 	header.Set("Accept-Encoding", "gzip, deflate, sdch")
@@ -181,11 +153,8 @@ func main() {
 	header.CopyTo(&req.Header)
 	req.AppendBodyString(*body)
 
-	//TODO set all settings directly to property of header
-
 	(&Boomer{
-		Request: &req,
-		//		RequestBody:        *body,
+		Request:            &req,
 		N:                  num,
 		C:                  conc,
 		Qps:                q,
