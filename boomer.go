@@ -268,6 +268,6 @@ func (b *Boomer) runWorkers() {
 func cloneRequest(r *fasthttp.Request) *fasthttp.Request {
 	r2 := new(fasthttp.Request)
 	r.Header.CopyTo(&r2.Header)
-	r2.AppendBody( r.Body() )
+	r2.AppendBody(r.Body())
 	return r2
 }
