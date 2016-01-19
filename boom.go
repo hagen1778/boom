@@ -147,7 +147,9 @@ func main() {
 
 	header.SetMethod(method)
 	header.SetRequestURI(url)
-	header.Set("Accept-Encoding", "gzip, deflate, sdch")
+	if !*disableCompression {
+		header.Set("Accept-Encoding", "gzip")
+	}
 
 	var req fasthttp.Request
 	header.CopyTo(&req.Header)
