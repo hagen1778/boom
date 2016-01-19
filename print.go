@@ -74,6 +74,7 @@ func (r *report) finalize() {
 	r.rps = float64(len(r.lats)) / r.total.Seconds()
 	r.average = r.avgTotal / float64(len(r.lats))
 	r.print()
+
 	if *flagMemProfile != "" {
 		log.Print("Profiling to file ", *flagMemProfile, " started.")
 

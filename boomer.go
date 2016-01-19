@@ -24,7 +24,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/rakyll/pb"
+//	"github.com/rakyll/pb"
+
 	"github.com/valyala/fasthttp"
 	"sync/atomic"
 )
@@ -46,8 +47,6 @@ type worker struct {
 type Boomer struct {
 	// Request is the request to be made.
 	Request *fasthttp.Request
-
-	//	RequestBody string
 
 	// N is the total number of requests to make.
 	N int
@@ -78,7 +77,7 @@ type Boomer struct {
 	// Optional.
 	ProxyAddr *url.URL
 
-	bar     *pb.ProgressBar
+	bar     *pBar
 	host    string
 	results []result
 	idx     uint64
@@ -88,23 +87,24 @@ func (b *Boomer) startProgress() {
 	if b.Output != "" {
 		return
 	}
-	b.bar = pb.New(b.N)
-	b.bar.Format("Bom !")
-	b.bar.Start()
+
+//	b.bar = initBar(50)
+	b.bar = newBar(b.N)
 }
 
 func (b *Boomer) finalizeProgress() {
 	if b.Output != "" {
 		return
 	}
-	b.bar.Finish()
+	b.bar.set(100)
 }
 
-func (b *Boomer) incProgress() {
+func (b *Boomer) incProgress(idx uint64) {
 	if b.Output != "" {
 		return
 	}
-	b.bar.Increment()
+	percent := float64(idx) / (float64(b.N) / float64(100))
+	b.bar.set(int(percent))
 }
 
 // Run makes all the requests, prints the summary. It blocks until
@@ -235,8 +235,9 @@ func (b *Boomer) runWorker(ch <-chan struct{}) {
 			code = resp.StatusCode()
 		}
 
-		b.incProgress()
+
 		idx := atomic.AddUint64(&b.idx, 1)
+		b.incProgress(idx)
 		r := &b.results[idx-1]
 		r.statusCode = code
 		r.duration = time.Since(s)
@@ -264,10 +265,7 @@ func (b *Boomer) runWorkers() {
 	wg.Wait()
 }
 
-// cloneRequest returns a clone of the provided *http.Request.
-// The clone is a shallow copy of the struct and its Header map.
 func cloneRequest(r *fasthttp.Request) *fasthttp.Request {
-	// shallow copy of the struct
 	r2 := new(fasthttp.Request)
 	r.Header.CopyTo(&r2.Header)
 	r2.AppendBody(r.Body())
